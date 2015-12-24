@@ -2335,6 +2335,10 @@ static int __smb358_path_suspend(struct smb358_charger *chip,bool suspend)
 {
 	int rc;
 
+	rc= smb358_enable_volatile_writes(smb358_dev);
+	if (rc < 0)
+		return rc;
+
 	rc=smb358_masked_write(chip,CMD_A_REG,CMD_A_CHG_SUSP_EN_MASK,suspend ? CMD_A_CHG_SUSP_EN_BIT : 0);
 
 	if(rc<0)
@@ -3374,7 +3378,7 @@ static int smb358_soc_detect_batt_tempr_5wBZsku_zd550(int usb_state)
 
 	/*set charger current limit by kerwin*/
 	if(g_usb_state == AC_IN ){
-	    ret = Thermal_Policy(&thermal_policy_ic);
+	    ret = Thermal_Policy_ze550(&thermal_policy_ic);
 		if(ret < 0){
 			BAT_DBG_E(" %s: fail to set current according to Thermal Policy\n", __FUNCTION__);
 		}
@@ -3711,8 +3715,8 @@ static int Thermal_Policy(int *thermal_policy_current){
                                  //smb358_update_aicl_work(5);
                                  //wake_lock_timeout(&inok_wakelock, 5 * HZ);
                          } else if (Thermal_Level == 1){
-                                 BAT_DBG("Thermal_Level = %d, set Iusb_in current = 1200mA\n", Thermal_Level);
-								 *thermal_policy_current=CFG_CURRENT_LIMIT_SMB358_VALUE_1200;
+                                 BAT_DBG("Thermal_Level = %d, set Iusb_in current = 1000mA\n", Thermal_Level);
+								 *thermal_policy_current=CFG_CURRENT_LIMIT_SMB358_VALUE_1000;
                          } else if (Thermal_Level == 2){
                                  ret = get_bms_calculated_soc(&cap);
                                  if (ret < 0) {
@@ -3839,7 +3843,7 @@ void aicl_dete_worker(struct work_struct *dat)
 		/*if AICL result <= 500, then config input current but don't do JEITA*/
 		if(asus_PRJ_ID==ASUS_ZD550KL||asus_PRJ_ID==ASUS_ZE600KL){
 			BAT_DBG("%s: ZD550KL & ZE600KL flow\n", __FUNCTION__);
-                        if (aicl_result <= 500) {
+                  	if (aicl_result <= 500 && Thermal_Level < 2) {
 			        BAT_DBG("%s: don't do JEITA when aicl result(%dmA) <= 500mA.\n", __FUNCTION__, aicl_result);
 			        smb358_config_max_current(usb_state);
 				goto skip_jeita;
@@ -4145,6 +4149,12 @@ int setSMB358Charger(int usb_state)
 	}
 	if (smb358_dev) {
 		power_supply_changed(&smb358_power_supplies[0]);
+		//under 02h[7]=0,  prevent cable_plug & reboot when suspend adapter
+		ret=__smb358_path_suspend(smb358_dev,0);
+		if (ret){
+                BAT_DBG_E("%s: Set adapter to normal mode fail!\n",__FUNCTION__);
+			//	return -1;
+                }
 	}
 	switch (usb_state) {
 	case AC_IN:
@@ -4817,6 +4827,12 @@ static int smb358_charger_probe(struct i2c_client *client,
 	/*BSP david: do JEITA if the usb state has changed*/
 	if (smb358_is_charging(usb_state)) {
 		mutex_lock(&g_usb_state_lock);
+		//under 02h[7]=0,  prevent cable_plug & reboot when suspend adapter
+		ret=__smb358_path_suspend(smb358_dev,0);
+		if (ret){
+                BAT_DBG_E("%s: Set adapter to normal mode fail!\n",__FUNCTION__);
+				return -1;
+        }
 		smb358_config_max_current(g_usb_state);
 		mutex_unlock(&g_usb_state_lock);
 		if (usb_state == AC_IN) {

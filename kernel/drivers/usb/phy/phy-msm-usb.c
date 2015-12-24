@@ -51,11 +51,9 @@
 #include <linux/qpnp/qpnp-adc.h>
 
 #include <linux/msm-bus.h>
-
 #include <linux/path.h>
 #include <linux/namei.h>
 #include <linux/dcache.h>
-
 #define MSM_USB_BASE	(motg->regs)
 #define MSM_USB_PHY_CSR_BASE (motg->phy_csr_regs)
 
@@ -742,8 +740,10 @@ static bool asus_otg_keep_power_on_check(void)
 	struct file *flp = NULL;
 	mm_segment_t oldfs;
 	int index = 0, num = 0, ret = 0;
+
 	struct path p;
 	int err;
+
 	oldfs = get_fs();
 	set_fs(get_ds());
 
@@ -756,7 +756,6 @@ static bool asus_otg_keep_power_on_check(void)
 		}
 		path_put(&p);
 	}
-
 
 	num = sizeof(usb_device_list)/sizeof(usb_device_list[0]);
 
@@ -3546,8 +3545,8 @@ static void msm_chg_detect_work(struct work_struct *w)
 	/* resume the device first if at all it resumes */
 	pm_runtime_resume(phy->dev);
 
-        if (g_Charger_mode && !gadget_init.done) {
-                ret = wait_for_completion_timeout(&gadget_init,msecs_to_jiffies(8000));
+        if (!gadget_init.done) {
+                ret = wait_for_completion_timeout(&gadget_init,msecs_to_jiffies(2000));
                 if (!ret)
                         dev_err(motg->phy.dev, "%so: timeout waiting for gadget driver\n",__func__);
         }
