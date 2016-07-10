@@ -1774,7 +1774,7 @@ static int mapping_for_full_status(int last_soc)
 		if (result == 0) {
 			ASUSEvtlog("[BAT] Low Voltage\n");
 			printk("[BAT] Low Voltage\n");
-			//power_supply_changed(&the_chip->bms_psy);
+			power_supply_changed(&the_chip->bms_psy);
 			batLow = true;
 			 }
 	} else{
@@ -1784,7 +1784,7 @@ static int mapping_for_full_status(int last_soc)
 			}
 		}
 
-	if((result==0)&&(reported_flag==0))
+	/*if((result==0)&&(reported_flag==0))
 		{
 		if (the_chip->batt_psy == NULL)
 			the_chip->batt_psy = power_supply_get_by_name("battery");
@@ -1793,7 +1793,7 @@ static int mapping_for_full_status(int last_soc)
 			power_supply_changed(the_chip->batt_psy);
 			reported_flag=1;
 			}
-		}
+		}*/
 	return result;
 }
 
@@ -1855,12 +1855,12 @@ static int report_vm_bms_soc(struct qpnp_bms_chip *chip)
 		}
 		/*
 		weiyu:
-		modify CAT once due to the update of calculated_soc was delayed. 
+		modify CAT once due to the update of calculated_soc was delayed.
 		*/
 		if(!chip->modify_CAT_once && (1 < soc - chip->last_soc )){
 			chip->modify_CAT_once = true;
-			calculate_catch_up_time(soc, chip, true);	
-			chip->charge_start_tm_sec = last_change_sec;	
+			calculate_catch_up_time(soc, chip, true);
+			chip->charge_start_tm_sec = last_change_sec;
 		}
 
 		charge_time_sec = min(SOC_CATCHUP_SEC_MAX, (int)last_change_sec
@@ -1869,7 +1869,7 @@ static int report_vm_bms_soc(struct qpnp_bms_chip *chip)
 		/* end catchup if calculated soc and last soc are same */
 		if (chip->last_soc == soc)
 			chip->catch_up_time_sec = 0;
-		
+
 	}
 
 	if (chip->last_soc != -EINVAL) {
@@ -1913,7 +1913,7 @@ static int report_vm_bms_soc(struct qpnp_bms_chip *chip)
 			soc_change = min(1, soc_change);
 		}
 
-                        printk("%s:[bms]soc_change = %d\n",__func__,soc_change);
+                        //printk("%s:[bms]soc_change = %d\n",__func__,soc_change);
 		//if (soc < chip->last_soc && soc != 0)
 		if (soc < chip->last_soc && chip->last_soc != 0)
 			soc = chip->last_soc - soc_change;
@@ -1939,7 +1939,7 @@ static int report_vm_bms_soc(struct qpnp_bms_chip *chip)
 			check_recharge_condition(chip);
 	}
 
-	pr_debug("last_soc=%d calculated_soc=%d soc=%d time_since_last_change=%d\n",
+	printk("last_soc=%d calculated_soc=%d soc=%d time_since_last_change=%d\n",
 			chip->last_soc, chip->calculated_soc,
 			soc, time_since_last_change_sec);
 
@@ -1961,7 +1961,7 @@ static int report_vm_bms_soc(struct qpnp_bms_chip *chip)
                 }
         }
 
-        printk("%s:[bms]before mapping last_soc = <%d>\n",__func__,chip->last_soc);
+        //printk("%s:[bms]before mapping last_soc = <%d>\n",__func__,chip->last_soc);
 	result_soc = mapping_for_full_status(chip->last_soc);
 	printk("%s:[bms]Reported result_soc=%d\n",__func__ ,result_soc);
 	/*
@@ -3166,28 +3166,32 @@ static int calculate_initial_soc(struct qpnp_bms_chip *chip)
 	est_soc = lookup_soc_ocv(chip, est_ocv, batt_temp);
 
 	compare_and_choose(chip,est_ocv, est_soc,  HW_and_est_thd);
-	
+
 	spmi_ext_register_readl(chip->spmi->ctrl, chip->spmi->sid,
 		0x00000808, &reg, 1);
-	if(!chip->shutdown_soc_invalid){		
+	if(!chip->shutdown_soc_invalid){
 		if((reg& reboot_or_not) || chip->warm_reset){
 			using_shutdown_data(chip, batt_temp);
 		}
-		else if(chip->calculated_soc <  soc_adopt_low_thd){
+                else if(reg& chgm_by_ac){
+			printk("case for charger mode by ac.\n");
+			using_shutdown_data(chip, batt_temp);
+                }
+                else if(chip->calculated_soc <  soc_adopt_low_thd){
 			printk("case for chosen and shutdown are low\n");
 			if(chip->shutdown_soc < chip->calculated_soc)
-				using_shutdown_data(chip, batt_temp);		
+				using_shutdown_data(chip, batt_temp);
 		}
-		else 
-			check_est_region_and_compare(chip, batt_temp);
+		else
+                        check_est_region_and_compare(chip, batt_temp);
 	}
 	else
 		printk("shutdown soc invalid, using pon ocv\n");
 
 
 	//lazy
-	chip->last_soc = chip->calculated_soc;	
-	
+	chip->last_soc = chip->calculated_soc;
+
 	/* store the start-up OCV for voltage-based-soc */
 	chip->voltage_soc_uv = chip->last_ocv_uv;
 
